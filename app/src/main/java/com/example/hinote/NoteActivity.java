@@ -84,7 +84,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         super.onResume();
 //        mAdapterNotes.notifyDataSetChanged();
         mNoteRecyclerAdapter.notifyDataSetChanged();
-
     }
 
     @Override

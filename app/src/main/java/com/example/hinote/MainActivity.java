@@ -1,6 +1,8 @@
 package com.example.hinote;
 
 import android.content.Intent;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -12,23 +14,33 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
+
+import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
+import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
 
 import java.util.List;
 
 //it's because our MainActivity extends the AppCompatActivity we have the advantage of restoring(only for editable widgets) through our bundle passed on the onCreate Method
 public class MainActivity extends AppCompatActivity {
 
-    public static final String NOTE_POSITION = "com.example.hinote.NOTE_POSITION";
-    public static final int POSITION_NOT_SET = -1;
+    public static final String NOTE_ID = "com.example.hinote.NOTE_POSITION";
+    public static final int ID_NOT_SET = -1;
     private NoteInfo mNote;
     private boolean mIsNewNote;
     private Spinner mSpinnerCourses;
     private EditText mTextNoteTitle;
     private EditText mTextNoteText;
-    private int mNotePosition;
+    private int mNoteId;
     private boolean mIsCanceling;
     private NoteActivityViewModel mViewModlel;
+    private NoteKeeperOpenHelper mDBOpenHelper;
+    private Cursor mNoteCursor;
+    private int mCourseIdPos;
+    private int mNoteTitlePos;
+    private int mNoteTextPos;
+    private SimpleCursorAdapter mAdapterCourses;
 
 
     @Override
@@ -44,6 +56,7 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
 
 
+        mDBOpenHelper = new NoteKeeperOpenHelper(this);
         //we don't create viewModel instance directly,Instead we allow the system to mange those viewModel instances for us.
         //so us part of that we need a view modelProvider
 
@@ -70,28 +83,89 @@ public class MainActivity extends AppCompatActivity {
 
 
         mSpinnerCourses = findViewById(R.id.spinner_courses);
-        List<CourseInfo> courses = DataManager.getInstance().getCourses();
 
-        ArrayAdapter<CourseInfo> adapterCourses = new ArrayAdapter<>(
-                this,android.R.layout.simple_spinner_item,courses
+//        List<CourseInfo> courses = DataManager.getInstance().getCourses();
+//        ArrayAdapter<CourseInfo> adapterCourses = new ArrayAdapter<>(
+//                this,android.R.layout.simple_spinner_item,courses
+//        );
+//        //associate the resource we want to use for drop-down list of courses
+//        adapterCourses.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+//        //we attach the array adapter with the spinner
+//        mSpinnerCourses.setAdapter(adapterCourses);
+
+        //USING SIMPLE CURSOR ADAPTER INSTEAD OF ARRAY ADAPTER
+        //here instead of populating our spinner from our DataManager we populate it directly from our database (decoupling our spinner and list view from
+        //our dataManager and getting direct access from the database)
+        mAdapterCourses = new SimpleCursorAdapter(
+                this,android.R.layout.simple_spinner_item,null,
+                //the name of the data we want to pull from our cursor
+                new String[] {CourseInfoEntry.COLUMN_COURSE_TITLE},
+                //the id's of the views we want to set,in our case we r using the built in layout resources which is simple spinner item,
+                //and in the case of built in layout resource we tend to follow standard naming,
+                //if text view in it - the id will be android.R.id.text1 and there are two text views the second will be named text2
+                //below we're just saying we want to populate the view with the id with the value that came from the cursor
+                new int[]{android.R.id.text1},0
+
         );
+
         //associate the resource we want to use for drop-down list of courses
-        adapterCourses.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        mAdapterCourses.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         //we attach the array adapter with the spinner
-        mSpinnerCourses.setAdapter(adapterCourses);
+        mSpinnerCourses.setAdapter(mAdapterCourses);
+        loadCourseData();
 
         readDisplayStateValues();
-        saveOriginalNoteValues();
+//      saveOriginalNoteValues();
 
         mTextNoteTitle = findViewById(R.id.text_note_title);
         mTextNoteText = findViewById(R.id.text_note_text);
 
         if(!mIsNewNote) {
-            displayNote(mSpinnerCourses, mTextNoteTitle, mTextNoteText);
+//            displayNote();
+            loadNoteData();
         }
 
 
 
+
+    }
+
+    private void loadCourseData() {
+        SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+        String[] courseColumns = {
+                CourseInfoEntry.COLUMN_COURSE_TITLE,
+                CourseInfoEntry.COLUMN_COURSE_ID,
+                CourseInfoEntry._ID
+        };
+        Cursor cursor = db.query(CourseInfoEntry.TABLE_NAME,courseColumns,
+                null,null,null,null,CourseInfoEntry.COLUMN_COURSE_TITLE);
+        //here our spinner will be populated with all the rows from courseInfoTable
+        mAdapterCourses.changeCursor(cursor);
+    }
+
+    private void loadNoteData() {
+        SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+//        String courseId = "android_intents";
+//        String titleStart = "dynamic";
+
+//        String selection = NoteInfoEntry.COLUMN_COURSE_ID + " = ? AND "
+//                + NoteInfoEntry.COLUMN_NOTE_TITLE + " LIKE ?";
+//        String[] selectionArgs = {courseId,titleStart + "%"};
+
+        String selection = NoteInfoEntry._ID + " = ?";
+        String[] selectionArgs = {Integer.toString(mNoteId)};
+
+        String[] noteColumns = {
+                NoteInfoEntry.COLUMN_COURSE_ID,
+                NoteInfoEntry.COLUMN_NOTE_TITLE,
+                NoteInfoEntry.COLUMN_NOTE_TEXT
+        };
+        mNoteCursor = db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
+        mCourseIdPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+        mNoteTitlePos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
+        mNoteTextPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
+        mNoteCursor.moveToNext();
+        displayNote();
 
     }
 
@@ -120,15 +194,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (mIsCanceling){
-            if (mIsNewNote){
-                DataManager.getInstance().removeNote(mNotePosition);
-            }else {
-                storePreviousNoteValues();
-            }
-        }else{
-            saveNote();
-        }
+//        if (mIsCanceling){
+//            if (mIsNewNote){
+//                DataManager.getInstance().removeNote(mNoteId);
+//            }else {
+//                storePreviousNoteValues();
+//            }
+//        }else{
+//            saveNote();
+//        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        mDBOpenHelper.close();
+        super.onDestroy();
     }
 
     private void storePreviousNoteValues() {
@@ -145,33 +225,58 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void displayNote(Spinner spinnerCourses, EditText textNoteTitle, EditText textNoteText) {
-        List<CourseInfo> courses = DataManager.getInstance().getCourses();
-        int courseIndex = courses.indexOf(mNote.getCourse());
-        spinnerCourses.setSelection(courseIndex);
-        textNoteTitle.setText(mNote.getTitle());
-        textNoteText.setText(mNote.getText());
+    private void displayNote() {
+        String courseId = mNoteCursor.getString(mCourseIdPos);
+        String noteTitle = mNoteCursor.getString(mNoteTitlePos);
+        String noteText = mNoteCursor.getString(mNoteTextPos);
 
+//        SINCE I STARTED USING SIMPLE CURSOR ADAPTOR(communicants with cursor only) we don't need the below lines with the DataManager
+//        List<CourseInfo> courses = DataManager.getInstance().getCourses();
+//        CourseInfo course = DataManager.getInstance().getCourse(courseId);
+
+        int courseIndex = getIndexOfCourseId(courseId);
+        mSpinnerCourses.setSelection(courseIndex);
+        mTextNoteTitle.setText(noteTitle);
+        mTextNoteText.setText(noteText);
+    }
+
+    private int getIndexOfCourseId(String courseId) {
+        Cursor cursor = mAdapterCourses.getCursor();
+        int courseIdPos = cursor.getColumnIndex(CourseInfoEntry.COLUMN_COURSE_ID);
+        int courseRowIndex = 0;
+
+        //because this cursor is already used to populate the spinner we don't know where the cursor is positioned
+        //so we call cursor.moveToFirst() to assure it's at the first row
+        boolean more = cursor.moveToFirst();
+        while (more){
+            String cursorCourseId = cursor.getString(courseIdPos);
+            if (courseId.equals(cursorCourseId)){
+                break;
+            }
+            courseRowIndex ++;
+            more = cursor.moveToNext();
+        }
+        return courseRowIndex;
     }
 
     private void readDisplayStateValues() {
         Intent intent = getIntent();
         //getExtras are not reference types they are value types,
         //Extras that are value-types require a second argument that provides a default value
-        mNotePosition = intent.getIntExtra(NOTE_POSITION, POSITION_NOT_SET);
-        mIsNewNote = mNotePosition == POSITION_NOT_SET;
+        mNoteId = intent.getIntExtra(NOTE_ID, ID_NOT_SET);
+        mIsNewNote = mNoteId == ID_NOT_SET;
         if (mIsNewNote){
             createNewNote();
         }else {
-            mNote = DataManager.getInstance().getNotes().get(mNotePosition);
+//            mNote = DataManager.getInstance().getNotes().get(mNoteId);
         }
     }
     //to create a brand new note
     private void createNewNote() {
         DataManager dm = DataManager.getInstance();
         //show us what is the position of the newly created note
-        mNotePosition = dm.createNewNote();
-        mNote = dm.getNotes().get(mNotePosition);
+        mNoteId = dm.createNewNote();
+        mNote = dm.getNotes().get(mNoteId);
 
     }
 
@@ -211,19 +316,19 @@ public class MainActivity extends AppCompatActivity {
         MenuItem item = menu.findItem(R.id.action_next);
         int lastNoteIndex = DataManager.getInstance().getNotes().size() -1;
 
-        item.setEnabled(mNotePosition < lastNoteIndex);
+        item.setEnabled(mNoteId < lastNoteIndex);
         return super.onPrepareOptionsMenu(menu);
     }
 
     private void moveNext() {
         saveNote();
-        ++mNotePosition;
+        ++mNoteId;
 
-        mNote = DataManager.getInstance().getNotes().get(mNotePosition);
+        mNote = DataManager.getInstance().getNotes().get(mNoteId);
 
         //we save the original values of the next selected items
         saveOriginalNoteValues();
-        displayNote(mSpinnerCourses,mTextNoteTitle,mTextNoteText);
+        displayNote();
 
         //schedules call to onPrepareOptionsMenu
         invalidateOptionsMenu();

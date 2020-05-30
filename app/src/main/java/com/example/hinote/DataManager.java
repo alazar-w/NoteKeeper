@@ -36,9 +36,12 @@ public class DataManager {
 
         loadCoursesFromDatabase(courseCursor);
 
-        String[] noteColumns = {NoteInfoEntry.COLUMN_NOTE_TITLE,
+        String[] noteColumns = {
+                NoteInfoEntry.COLUMN_NOTE_TITLE,
                 NoteInfoEntry.COLUMN_NOTE_TEXT,
-                NoteInfoEntry.COLUMN_COURSE_ID};
+                NoteInfoEntry.COLUMN_COURSE_ID,
+                NoteInfoEntry._ID
+        };
 
         //we want the notes sorted by the course that they apply to,then within each course we want to sort the titles
         String noteOrderBy = NoteInfoEntry.COLUMN_COURSE_ID + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
@@ -53,6 +56,7 @@ public class DataManager {
         int noteTitlePos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
         int noteTextPos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
         int courseIdPos = cursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+        int idPos = cursor.getColumnIndex(NoteInfoEntry._ID);
 
         DataManager dm = getInstance();
         dm.mNotes.clear();
@@ -60,9 +64,10 @@ public class DataManager {
             String courseId = cursor.getString(courseIdPos);
             String noteTitle = cursor.getString(noteTitlePos);
             String noteText = cursor.getString(noteTextPos);
+            int id = cursor.getInt(idPos);
 
             CourseInfo course = dm.getCourse(courseId);
-            NoteInfo note = new NoteInfo(course,noteTitle,noteText);
+            NoteInfo note = new NoteInfo(id,course,noteTitle,noteText);
 
             dm.mNotes.add(note);
         }

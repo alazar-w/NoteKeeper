@@ -35,14 +35,11 @@ public class NoteListActivity extends AppCompatActivity {
             public void onClick(View view) {
                 Intent intent = new Intent(NoteListActivity.this,MainActivity.class);
                 startActivity(intent);
-
             }
         });
         //since onCreate is  only called once we need to let notify our adapter
         //in initializeDisplayContent() if we change any thing when we resume back
         initializeDisplayContent();
-
-
     }
 
     //whenever we get back to the NoteListActivity we need to notify the ArrayAdapter that if any data is changed
