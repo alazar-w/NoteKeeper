@@ -1,18 +1,23 @@
 package com.example.hinote;
 
 import android.content.Intent;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Menu;
 
+import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.view.GravityCompat;
+import androidx.loader.content.CursorLoader;
+import androidx.loader.content.Loader;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -23,11 +28,13 @@ import androidx.navigation.ui.NavigationUI;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
 import java.util.List;
 
-public class NoteActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener{
+import static androidx.loader.app.LoaderManager.getInstance;
 
+public class NoteActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener,androidx.loader.app.LoaderManager.LoaderCallbacks<Cursor>{
+
+    private static final int LOADRE_NOTES = 0;
     private AppBarConfiguration mAppBarConfiguration;
     private NoteRecyclerAdapter mNoteRecyclerAdapter;
     private LinearLayoutManager mNoteLayoutManager;
@@ -83,7 +90,30 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
     protected void onResume() {
         super.onResume();
 //        mAdapterNotes.notifyDataSetChanged();
-        mNoteRecyclerAdapter.notifyDataSetChanged();
+
+        //when we populate our recycler adapter with array adapter we use notifyDataSetChanged() to let the array adapter know data in the list may have been changed and need to update the recycler view
+        //mNoteRecyclerAdapter.notifyDataSetChanged();
+        getInstance(this).restartLoader(LOADRE_NOTES,null,this);
+        //updateNavHeader()  -- not worked,it is related to navigation View
+    }
+
+    //not used b/c of the use of Data Loading with Loaders
+    private void loadNotes() {
+        SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+        String[] noteColumns = {
+                NoteInfoEntry.COLUMN_NOTE_TITLE,
+                NoteInfoEntry.COLUMN_COURSE_ID,
+                NoteInfoEntry._ID
+        };
+
+        //we want the notes sorted by the course that they apply to,then within each course we want to sort the titles
+        String noteOrderBy = NoteInfoEntry.COLUMN_COURSE_ID + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
+
+        Cursor noteCursor = db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
+        //we associate the cursor with the note recycler adapter
+        mNoteRecyclerAdapter.changeCursor(noteCursor);
+
+
     }
 
     @Override
@@ -120,15 +150,12 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         mNoteLayoutManager = new LinearLayoutManager(this);
         mCourseLayoutManager = new GridLayoutManager(this,getResources().getInteger(R.integer.course_girid_span));
 
-        List<NoteInfo> notes = DataManager.getInstance().getNotes();
-        mNoteRecyclerAdapter = new NoteRecyclerAdapter(this,notes);
+//        List<NoteInfo> notes = DataManager.getInstance().getNotes();
+        mNoteRecyclerAdapter = new NoteRecyclerAdapter(this,null);
 
         List<CourseInfo> courses = DataManager.getInstance().getCourses();
         mCourseRecyclerAdapter = new CourseRecyclerAdapter(this,courses);
-
-
         displayNotes();
-
 
     }
 
@@ -214,6 +241,50 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
     private void handleSelection(int message_id) {
         View view = findViewById(R.id.list_item);
         Snackbar.make(view,message_id,Snackbar.LENGTH_LONG).show();
+    }
+
+    @NonNull
+    @Override
+    public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
+        CursorLoader loader = null;
+        if (id == LOADRE_NOTES)
+            loader = createLoaderNotes();
+        return  loader;
+    }
+
+    private CursorLoader createLoaderNotes() {
+       return new CursorLoader(this){
+           @Override
+           public Cursor loadInBackground() {
+               SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+               String[] noteColumns = {
+                       NoteInfoEntry.COLUMN_NOTE_TITLE,
+                       NoteInfoEntry.COLUMN_COURSE_ID,
+                       NoteInfoEntry._ID
+               };
+
+               //we want the notes sorted by the course that they apply to,then within each course we want to sort the titles
+               String noteOrderBy = NoteInfoEntry.COLUMN_COURSE_ID + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
+
+               return db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
+           }
+       };
+
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull Loader<Cursor> loader, Cursor data) {
+        if (loader.getId() == LOADRE_NOTES)
+            //we associate the cursor with the note recycler adapter
+            mNoteRecyclerAdapter.changeCursor(data);
+
+    }
+
+    @Override
+    public void onLoaderReset(@NonNull Loader<Cursor> loader) {
+        if (loader.getId() == LOADRE_NOTES)
+            mNoteRecyclerAdapter.changeCursor(null);
+
     }
 
 //    @Override

@@ -1,14 +1,18 @@
 package com.example.hinote;
 
+import android.app.LoaderManager;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.loader.content.CursorLoader;
+import androidx.loader.content.Loader;
 
 import android.view.Menu;
 import android.view.MenuItem;
@@ -22,11 +26,15 @@ import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
 
 import java.util.List;
 
+import static androidx.loader.app.LoaderManager.*;
+
 //it's because our MainActivity extends the AppCompatActivity we have the advantage of restoring(only for editable widgets) through our bundle passed on the onCreate Method
-public class MainActivity extends AppCompatActivity {
+//we put type cursor in LoaderManager.LoaderCallbacks<Cursor> b/c the loader manager loads data in to Cursor
+public class MainActivity extends AppCompatActivity implements androidx.loader.app.LoaderManager.LoaderCallbacks<Cursor> {
 
     public static final String NOTE_ID = "com.example.hinote.NOTE_POSITION";
     public static final int ID_NOT_SET = -1;
+    public static final int LOADRE_NOTES = 0;
     private NoteInfo mNote;
     private boolean mIsNewNote;
     private Spinner mSpinnerCourses;
@@ -41,6 +49,9 @@ public class MainActivity extends AppCompatActivity {
     private int mNoteTitlePos;
     private int mNoteTextPos;
     private SimpleCursorAdapter mAdapterCourses;
+    private int LOADER_COURSES;
+    private boolean mCoursesQueryFinished;
+    private boolean mNoteQueryFinished;
 
 
     @Override
@@ -105,14 +116,14 @@ public class MainActivity extends AppCompatActivity {
                 //if text view in it - the id will be android.R.id.text1 and there are two text views the second will be named text2
                 //below we're just saying we want to populate the view with the id with the value that came from the cursor
                 new int[]{android.R.id.text1},0
-
         );
 
         //associate the resource we want to use for drop-down list of courses
         mAdapterCourses.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         //we attach the array adapter with the spinner
         mSpinnerCourses.setAdapter(mAdapterCourses);
-        loadCourseData();
+        LOADER_COURSES = 1;
+        getInstance(this).initLoader(LOADER_COURSES,null,this);
 
         readDisplayStateValues();
 //      saveOriginalNoteValues();
@@ -122,12 +133,12 @@ public class MainActivity extends AppCompatActivity {
 
         if(!mIsNewNote) {
 //            displayNote();
-            loadNoteData();
+            //loadNoteData directly loads data from database,so it have a very potential to interfere with the user interface so it's better to use loaderManager to load our data
+//            loadNoteData();
+            //we pass integer value to identify the loader,the last parameter is reference to class we want to receive the loader call back,we want it to come directly to MainActivity class so we put 'this'(we want the loader manager to 'NOTIFY' the MainActivity class of the loader event)
+//            getLoaderManager().initLoader(LOADRE_NOTES,null,this);
+            getInstance(this).initLoader(LOADRE_NOTES,null,this);
         }
-
-
-
-
     }
 
     private void loadCourseData() {
@@ -137,37 +148,39 @@ public class MainActivity extends AppCompatActivity {
                 CourseInfoEntry.COLUMN_COURSE_ID,
                 CourseInfoEntry._ID
         };
+
         Cursor cursor = db.query(CourseInfoEntry.TABLE_NAME,courseColumns,
                 null,null,null,null,CourseInfoEntry.COLUMN_COURSE_TITLE);
         //here our spinner will be populated with all the rows from courseInfoTable
         mAdapterCourses.changeCursor(cursor);
     }
 
-    private void loadNoteData() {
-        SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
-//        String courseId = "android_intents";
-//        String titleStart = "dynamic";
-
-//        String selection = NoteInfoEntry.COLUMN_COURSE_ID + " = ? AND "
-//                + NoteInfoEntry.COLUMN_NOTE_TITLE + " LIKE ?";
-//        String[] selectionArgs = {courseId,titleStart + "%"};
-
-        String selection = NoteInfoEntry._ID + " = ?";
-        String[] selectionArgs = {Integer.toString(mNoteId)};
-
-        String[] noteColumns = {
-                NoteInfoEntry.COLUMN_COURSE_ID,
-                NoteInfoEntry.COLUMN_NOTE_TITLE,
-                NoteInfoEntry.COLUMN_NOTE_TEXT
-        };
-        mNoteCursor = db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
-        mCourseIdPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
-        mNoteTitlePos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
-        mNoteTextPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
-        mNoteCursor.moveToNext();
-        displayNote();
-
-    }
+//    private void loadNoteData() {
+//        SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+////        String courseId = "android_intents";
+////        String titleStart = "dynamic";
+//
+////        String selection = NoteInfoEntry.COLUMN_COURSE_ID + " = ? AND "
+////                + NoteInfoEntry.COLUMN_NOTE_TITLE + " LIKE ?";
+////        String[] selectionArgs = {courseId,titleStart + "%"};
+//
+//        String selection = NoteInfoEntry._ID + " = ?";
+//        String[] selectionArgs = {Integer.toString(mNoteId)};
+//
+//        String[] noteColumns = {
+//                NoteInfoEntry.COLUMN_COURSE_ID,
+//                NoteInfoEntry.COLUMN_NOTE_TITLE,
+//                NoteInfoEntry.COLUMN_NOTE_TEXT
+//        };
+//        mNoteCursor = db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
+//
+//        mCourseIdPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+//        mNoteTitlePos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
+//        mNoteTextPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
+//        mNoteCursor.moveToNext();
+//        displayNote();
+//
+//    }
 
     //hear all the original note values are stored so we can use them later if the user cancels
 
@@ -350,4 +363,104 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra(Intent.EXTRA_TEXT,text);
         startActivity(intent);
     }
+
+
+
+    @NonNull
+    @Override
+    public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
+        //we load our not data using special kind of loader called a cursor loader
+        CursorLoader loader = null;
+        //an activity can have multiple loaders and each have an id SO the first thing we should do after declaring a loader variable is
+        //check to see if the id passed on the onCreateLoader has the value we looking for which is the constant 'LOADER_NOTES'
+        if (id == LOADRE_NOTES)
+            loader = createLoaderNotes();
+        else if (id == LOADER_COURSES)
+            loader = createLoaderCourses();
+
+        return loader;
+    }
+
+    private CursorLoader createLoaderCourses() {
+        mCoursesQueryFinished = false;
+        return new CursorLoader(this){
+            @Override
+            public Cursor loadInBackground() {
+                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+                String[] courseColumns = {
+                        CourseInfoEntry.COLUMN_COURSE_TITLE,
+                        CourseInfoEntry.COLUMN_COURSE_ID,
+                        CourseInfoEntry._ID
+                };
+
+                return db.query(CourseInfoEntry.TABLE_NAME,courseColumns,
+                        null,null,null,null,CourseInfoEntry.COLUMN_COURSE_TITLE);
+            }
+        };
+    }
+
+    //loader in this method is a reference to a loader,a loader we created inside createLoaderNotes,the second parameter is the actual Cursor we have returned
+    @Override
+    public void onLoadFinished(@NonNull androidx.loader.content.Loader<Cursor> loader, Cursor data) {
+        if (loader.getId() == LOADRE_NOTES){
+            loadFinishedNotes(data);
+        }else if (loader.getId() == LOADER_COURSES){
+            //here our spinner will be populated with all the rows from courseInfoTable
+            mAdapterCourses.changeCursor(data);
+            mCoursesQueryFinished = true;
+            displayNoteWhenQueryFinished();
+        }
+
+    }
+
+    @Override
+    public void onLoaderReset(@NonNull androidx.loader.content.Loader<Cursor> loader) {
+        if (loader.getId() == LOADRE_NOTES)
+            if (mNoteCursor != null)
+                mNoteCursor.close();
+        else if (loader.getId() == LOADER_COURSES)
+            mAdapterCourses.changeCursor(null);
+
+    }
+
+    private CursorLoader createLoaderNotes() {
+        mNoteQueryFinished = false;
+        return new CursorLoader(this){
+            @Override
+            public Cursor loadInBackground() {
+
+                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+                String selection = NoteInfoEntry._ID + " = ?";
+                String[] selectionArgs = {Integer.toString(mNoteId)};
+
+                String[] noteColumns = {
+                        NoteInfoEntry.COLUMN_COURSE_ID,
+                        NoteInfoEntry.COLUMN_NOTE_TITLE,
+                        NoteInfoEntry.COLUMN_NOTE_TEXT
+                };
+                return db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
+            }
+        };
+    }
+
+
+    private void loadFinishedNotes(Cursor data) {
+        mNoteCursor = data;
+
+        mCourseIdPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+        mNoteTitlePos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
+        mNoteTextPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
+        mNoteCursor.moveToNext();
+        mNoteQueryFinished = true;
+        displayNoteWhenQueryFinished();
+
+    }
+
+    private void displayNoteWhenQueryFinished() {
+        if (mNoteQueryFinished && mCoursesQueryFinished){
+            displayNote();
+        }
+
+    }
+
 }

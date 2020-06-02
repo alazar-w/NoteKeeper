@@ -2,6 +2,7 @@ package com.example.hinote;
 
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,6 +11,8 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
+
 import java.util.List;
 
 //our class NoteRecyclerAdapter,extends the class RecyclerView.Adapter,and we're going to use our class NoteRecyclerAdapter.ViewHolder
@@ -17,16 +20,51 @@ import java.util.List;
 public class NoteRecyclerAdapter extends RecyclerView.Adapter<NoteRecyclerAdapter.ViewHolder> {
 
     private final Context mContext;
-    private final List<NoteInfo> mNotes;
+//    private final List<NoteInfo> mNotes;
+    private Cursor mCursor;
     private final LayoutInflater mLayoutInflater;
+    private int mCoursePos;
+    private int mNoteTitlePos;
+    private int mIdPos;
 
-    public NoteRecyclerAdapter(Context context, List<NoteInfo> notes) {
+    //the cursor in the constructor is added instead of 'List<NoteInfo> notes'
+    public NoteRecyclerAdapter(Context context, Cursor cursor) {
         mContext = context;
         //inorder to create view from layout resource,we need to use the class that android provides called
         //LayoutInflater. and when we create layoutInflater,we actually create from a context
         //we use the layoutInflater to then inflate those layout resources into actual view hierarchies
         mLayoutInflater = LayoutInflater.from(context);
-        mNotes = notes;
+
+        //mNotes = notes;
+        mCursor = cursor;
+        //to get the values from our cursor we need the positions of the columns we r interested in
+        populateColumnPositions();
+
+    }
+
+    private void populateColumnPositions() {
+        if (mCursor == null){
+            return;
+        }
+        //Get column indexes from mCursor
+        mCoursePos = mCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
+        mNoteTitlePos = mCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
+        //this is the id we sent for the main activity to display the details from our recycler view
+        mIdPos = mCursor.getColumnIndex(NoteInfoEntry._ID);
+
+
+
+
+    }
+    public void changeCursor(Cursor cursor){
+        //check if we have an existing cursor
+        if (mCursor != null){
+            mCursor.close();
+        }
+        mCursor = cursor;
+        populateColumnPositions();
+        //notify our recycler view our data is changed
+        notifyDataSetChanged();
     }
 
 
@@ -47,19 +85,31 @@ public class NoteRecyclerAdapter extends RecyclerView.Adapter<NoteRecyclerAdapte
 
     //onBindViewHolder is responsible for associating data with our views,
     //int position - is the position of the data we want to associate(bind) on our view
+    //the purpose of this method is to display data at specific position
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-       NoteInfo note = mNotes.get(position);
-       holder.mTextCourse.setText(note.getCourse().getTitle());
-       holder.mTextTitle.setText(note.getTitle());
-       holder.mId = note.getId();
+        //move our cursor to the correct row
+        mCursor.moveToPosition(position);
+        //then get the actual values
+        String course = mCursor.getString(mCoursePos);
+        String noteTitle = mCursor.getString(mNoteTitlePos);
+        int id = mCursor.getInt(mIdPos);
+
+//       NoteInfo note = mNotes.get(position);
+//       holder.mTextCourse.setText(note.getCourse().getTitle());
+//       holder.mTextTitle.setText(note.getTitle());
+//       holder.mId = note.getId();
+        holder.mTextCourse.setText(course);
+        holder.mTextTitle.setText(noteTitle);
+        holder.mId = id;
 
     }
 
     //getItemCount indicate the number of data items we have
     @Override
     public int getItemCount() {
-        return mNotes.size();
+//        return mNotes.size();
+        return mCursor == null ? 0 : mCursor.getCount();
     }
 
 
