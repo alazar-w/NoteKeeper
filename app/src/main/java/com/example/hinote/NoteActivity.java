@@ -8,6 +8,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.Menu;
 
+import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
@@ -258,15 +259,27 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
            public Cursor loadInBackground() {
                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
                String[] noteColumns = {
+                       NoteInfoEntry.getQName(NoteInfoEntry._ID),
                        NoteInfoEntry.COLUMN_NOTE_TITLE,
-                       NoteInfoEntry.COLUMN_COURSE_ID,
-                       NoteInfoEntry._ID
+                       //i'm using the NoteInfoEntry.getQName just to show that column_course_id appear in both tables we want to join so this must
+                       // be qualified(must explicitly written the the table name before,like NoteInfoEntry.COLUMN_COURSE_ID)
+                      // NoteInfoEntry.getQName(NoteInfoEntry.COLUMN_COURSE_ID),
+                       CourseInfoEntry.COLUMN_COURSE_TITLE
+
                };
 
                //we want the notes sorted by the course that they apply to,then within each course we want to sort the titles
-               String noteOrderBy = NoteInfoEntry.COLUMN_COURSE_ID + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
+               String noteOrderBy = CourseInfoEntry.COLUMN_COURSE_TITLE + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
 
-               return db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
+               //note_info JOIN course_info ON note_info.course_id = course_info.course_id
+
+               String tablesWithJoin = NoteInfoEntry.TABLE_NAME + " JOIN " +
+                       CourseInfoEntry.TABLE_NAME + " ON " +
+                       NoteInfoEntry.getQName(NoteInfoEntry.COLUMN_COURSE_ID) + " = "+
+                       CourseInfoEntry.getQName(CourseInfoEntry.COLUMN_COURSE_ID);
+
+
+               return db.query(tablesWithJoin, noteColumns, null, null, null, null, noteOrderBy);
            }
        };
 
