@@ -313,10 +313,20 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     }
     //to create a brand new note
     private void createNewNote() {
-        DataManager dm = DataManager.getInstance();
-        //show us what is the position of the newly created note
-        mNoteId = dm.createNewNote();
-        mNote = dm.getNotes().get(mNoteId);
+//        DataManager dm = DataManager.getInstance();
+//        //show us what is the position of the newly created note
+//        mNoteId = dm.createNewNote();
+//        mNote = dm.getNotes().get(mNoteId);
+
+        ContentValues values = new ContentValues();
+        values.put(NoteInfoEntry.COLUMN_COURSE_ID,"");
+        values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,"");
+        values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,"");
+
+        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+        //we assign it to mNoteId b/c we want to update or remove this null values when the user gets back from this activity
+        mNoteId = (int) db.insert(NoteInfoEntry.TABLE_NAME,null,values);
+
 
     }
 
