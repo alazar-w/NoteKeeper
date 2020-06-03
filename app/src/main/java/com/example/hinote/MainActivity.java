@@ -1,6 +1,7 @@
 package com.example.hinote;
 
 import android.app.LoaderManager;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -136,7 +137,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
             //loadNoteData directly loads data from database,so it have a very potential to interfere with the user interface so it's better to use loaderManager to load our data
 //            loadNoteData();
             //we pass integer value to identify the loader,the last parameter is reference to class we want to receive the loader call back,we want it to come directly to MainActivity class so we put 'this'(we want the loader manager to 'NOTIFY' the MainActivity class of the loader event)
-//            getLoaderManager().initLoader(LOADRE_NOTES,null,this);
+//            getLoaderManager().initLoader(LOADER_NOTES,null,this);
             getInstance(this).initLoader(LOADRE_NOTES,null,this);
         }
     }
@@ -207,15 +208,15 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     @Override
     protected void onPause() {
         super.onPause();
-//        if (mIsCanceling){
-//            if (mIsNewNote){
-//                DataManager.getInstance().removeNote(mNoteId);
-//            }else {
-//                storePreviousNoteValues();
-//            }
-//        }else{
-//            saveNote();
-//        }
+        if (mIsCanceling){
+            if (mIsNewNote){
+                DataManager.getInstance().removeNote(mNoteId);
+            }else {
+                storePreviousNoteValues();
+            }
+        }else{
+            saveNote();
+        }
     }
 
     @Override
@@ -232,9 +233,35 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     }
 
     private void saveNote() {
-        mNote.setCourse((CourseInfo) mSpinnerCourses.getSelectedItem());
-        mNote.setTitle(mTextNoteTitle.getText().toString());
-        mNote.setText(mTextNoteText.getText().toString());
+//        mNote.setCourse((CourseInfo) mSpinnerCourses.getSelectedItem());
+//        mNote.setTitle(mTextNoteTitle.getText().toString());
+//        mNote.setText(mTextNoteText.getText().toString());
+        String courseId = selectedCourseId();
+        String noteTitle = mTextNoteTitle.getText().toString();
+        String noteText = mTextNoteText.getText().toString();
+        saveNoteToDatabase(courseId,noteTitle,noteText);
+    }
+
+    private String selectedCourseId() {
+        int selectedPosition = mSpinnerCourses.getSelectedItemPosition();
+        Cursor cursor = mAdapterCourses.getCursor();
+        cursor.moveToPosition(selectedPosition);
+        int courseIdPos = cursor.getColumnIndex(CourseInfoEntry.COLUMN_COURSE_ID);
+        String courseId = cursor.getString(courseIdPos);
+        return courseId;
+    }
+
+    private void saveNoteToDatabase(String courseId,String noteTitle,String noteText){
+        String selection = NoteInfoEntry._ID + " = ? ";
+        String[] selectionArgs = {Integer.toString(mNoteId)};
+
+        ContentValues values = new ContentValues();
+        values.put(NoteInfoEntry.COLUMN_COURSE_ID,courseId);
+        values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,noteTitle);
+        values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,noteText);
+
+        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+        db.update(NoteInfoEntry.TABLE_NAME,values,selection,selectionArgs);
 
     }
 
