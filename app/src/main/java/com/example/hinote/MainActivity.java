@@ -210,13 +210,23 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         super.onPause();
         if (mIsCanceling){
             if (mIsNewNote){
-                DataManager.getInstance().removeNote(mNoteId);
+                //this was to remove our new note from our InMemory Data
+                //DataManager.getInstance().removeNote(mNoteId);
+                deleteNoteFromDatabase();
+
             }else {
                 storePreviousNoteValues();
             }
         }else{
             saveNote();
         }
+    }
+
+    private void deleteNoteFromDatabase() {
+        String selection = NoteInfoEntry._ID + " = ? ";
+        String[] selectionArgs = {Integer.toString(mNoteId)};
+        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+        db.delete(NoteInfoEntry.TABLE_NAME,selection,selectionArgs);
     }
 
     @Override
