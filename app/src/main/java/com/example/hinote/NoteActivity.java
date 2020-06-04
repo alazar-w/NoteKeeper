@@ -19,13 +19,10 @@ import androidx.annotation.Nullable;
 import androidx.core.view.GravityCompat;
 import androidx.loader.content.CursorLoader;
 import androidx.loader.content.Loader;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.navigation.ui.NavigationUI;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -35,7 +32,7 @@ import static androidx.loader.app.LoaderManager.getInstance;
 
 public class NoteActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener,androidx.loader.app.LoaderManager.LoaderCallbacks<Cursor>{
 
-    private static final int LOADRE_NOTES = 0;
+    private static final int LOADER_NOTES = 0;
     private AppBarConfiguration mAppBarConfiguration;
     private NoteRecyclerAdapter mNoteRecyclerAdapter;
     private LinearLayoutManager mNoteLayoutManager;
@@ -94,7 +91,7 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
 
         //when we populate our recycler adapter with array adapter we use notifyDataSetChanged() to let the array adapter know data in the list may have been changed and need to update the recycler view
         //mNoteRecyclerAdapter.notifyDataSetChanged();
-        getInstance(this).restartLoader(LOADRE_NOTES,null,this);
+        getInstance(this).restartLoader(LOADER_NOTES,null,this);
         //updateNavHeader()  -- not worked,it is related to navigation View
     }
 
@@ -113,8 +110,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         Cursor noteCursor = db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
         //we associate the cursor with the note recycler adapter
         mNoteRecyclerAdapter.changeCursor(noteCursor);
-
-
     }
 
     @Override
@@ -157,7 +152,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         List<CourseInfo> courses = DataManager.getInstance().getCourses();
         mCourseRecyclerAdapter = new CourseRecyclerAdapter(this,courses);
         displayNotes();
-
     }
 
     private void displayNotes() {
@@ -170,8 +164,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         //SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
 
         selectNavigationMenuItem(R.id.nav_notes);
-
-
     }
 
     private void selectNavigationMenuItem(int id) {
@@ -248,7 +240,7 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
     @Override
     public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
         CursorLoader loader = null;
-        if (id == LOADRE_NOTES)
+        if (id == LOADER_NOTES)
             loader = createLoaderNotes();
         return  loader;
     }
@@ -287,7 +279,7 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     public void onLoadFinished(@NonNull Loader<Cursor> loader, Cursor data) {
-        if (loader.getId() == LOADRE_NOTES)
+        if (loader.getId() == LOADER_NOTES)
             //we associate the cursor with the note recycler adapter
             mNoteRecyclerAdapter.changeCursor(data);
 
@@ -295,7 +287,7 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
 
     @Override
     public void onLoaderReset(@NonNull Loader<Cursor> loader) {
-        if (loader.getId() == LOADRE_NOTES)
+        if (loader.getId() == LOADER_NOTES)
             mNoteRecyclerAdapter.changeCursor(null);
 
     }

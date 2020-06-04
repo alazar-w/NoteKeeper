@@ -5,6 +5,7 @@ import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -223,10 +224,25 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     }
 
     private void deleteNoteFromDatabase() {
-        String selection = NoteInfoEntry._ID + " = ? ";
-        String[] selectionArgs = {Integer.toString(mNoteId)};
-        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-        db.delete(NoteInfoEntry.TABLE_NAME,selection,selectionArgs);
+        //when ever local variables used in the body of method  marked anonymous class(the ASYNC TASK class) these variables must be marked as final
+        final String selection = NoteInfoEntry._ID + " = ? ";
+        final String[] selectionArgs = {Integer.toString(mNoteId)};
+
+        AsyncTask task = new AsyncTask() {
+            @Override
+            protected Object doInBackground(Object[] objects) {
+
+                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+                db.delete(NoteInfoEntry.TABLE_NAME,selection,selectionArgs);
+                return null;
+            }
+        };
+
+        //the async task class will tack care of the details of running the code in doInBackground method on a non-UI thread.
+        task.execute();
+
+
+
     }
 
     @Override
@@ -262,16 +278,24 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     }
 
     private void saveNoteToDatabase(String courseId,String noteTitle,String noteText){
-        String selection = NoteInfoEntry._ID + " = ? ";
-        String[] selectionArgs = {Integer.toString(mNoteId)};
+        final String selection = NoteInfoEntry._ID + " = ? ";
+        final String[] selectionArgs = {Integer.toString(mNoteId)};
 
-        ContentValues values = new ContentValues();
+        final ContentValues values = new ContentValues();
         values.put(NoteInfoEntry.COLUMN_COURSE_ID,courseId);
         values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,noteTitle);
         values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,noteText);
 
-        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-        db.update(NoteInfoEntry.TABLE_NAME,values,selection,selectionArgs);
+        AsyncTask task = new AsyncTask() {
+            @Override
+            protected Object doInBackground(Object[] objects) {
+                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+                db.update(NoteInfoEntry.TABLE_NAME,values,selection,selectionArgs);
+                return null;
+            }
+        };
+
+
 
     }
 
@@ -328,14 +352,22 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 //        mNoteId = dm.createNewNote();
 //        mNote = dm.getNotes().get(mNoteId);
 
-        ContentValues values = new ContentValues();
+        final ContentValues values = new ContentValues();
         values.put(NoteInfoEntry.COLUMN_COURSE_ID,"");
         values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,"");
         values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,"");
 
-        SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-        //we assign it to mNoteId b/c we want to update or remove this null values when the user gets back from this activity
-        mNoteId = (int) db.insert(NoteInfoEntry.TABLE_NAME,null,values);
+        AsyncTask task = new AsyncTask() {
+            @Override
+            protected Object doInBackground(Object[] objects) {
+                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+                //we assign it to mNoteId b/c we want to update or remove this null values when the user gets back from this activity
+                mNoteId = (int) db.insert(NoteInfoEntry.TABLE_NAME,null,values);
+                return null;
+            }
+        };
+
+       task.execute();
 
 
     }
