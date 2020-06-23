@@ -52,11 +52,8 @@ public class NoteRecyclerAdapter extends RecyclerView.Adapter<NoteRecyclerAdapte
         mNoteTitlePos = mCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
         //this is the id we sent for the main activity to display the details from our recycler view
         mIdPos = mCursor.getColumnIndex(NoteInfoEntry._ID);
-
-
-
-
     }
+
     public void changeCursor(Cursor cursor){
         //check if we have an existing cursor
         if (mCursor != null){
@@ -75,8 +72,9 @@ public class NoteRecyclerAdapter extends RecyclerView.Adapter<NoteRecyclerAdapte
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         //before we create the view holder we create the view
-        //View itemView = mLayoutInflater.inflate(layout resource,the view group that will be inflated within,false(means we don't want this newly inflated view automatically attached to it's parent. Instead we're going to do it through the adapter and recycler view)
-        //the View itemVew point to the root of the view that's created when that layout resource,item_note_list, is inflated
+        //View itemView = mLayoutInflater.inflate(layout resource,the view group that will be inflated within,
+        // false(means we don't want this newly inflated view automatically attached to it's parent. Instead we're going to do it through the adapter and recycler view)
+        //the View itemView point to the root of the view that's created when that layout resource,item_note_list, is inflated
         View itemView = mLayoutInflater.inflate(R.layout.item_note_list,parent,false);
         //the onCreateViewHolder returns a viewHolder(accepts view as a parameter)
 

@@ -3,7 +3,9 @@ package com.example.hinote;
 import android.provider.BaseColumns;
 
 public final class NoteKeeperDatabaseContract {
-    private NoteKeeperDatabaseContract() {} //make non-creatable
+    //We should never need to create an instance of the contract class because the contract is simply just a class filled with DB related constants that are all static,
+    // so the constructor should be always defined as private.
+    private NoteKeeperDatabaseContract() {}
 
     //BaseColumns interface is an interface we used to name our primary key so that our assigned primary key
     //get associated with the SQLite default primary key

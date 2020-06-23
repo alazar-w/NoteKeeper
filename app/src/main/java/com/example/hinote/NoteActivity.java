@@ -10,6 +10,7 @@ import android.view.Menu;
 
 import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
+import com.example.hinote.NoteKeeperProviderContract.Notes;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
@@ -51,9 +52,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
 
         //instance of our NoteKeeperOpenHelper and assigning it to our member field
         mDBOpenHelper = new NoteKeeperOpenHelper(this);
-
-
-
 
 
         FloatingActionButton fab = findViewById(R.id.fab);
@@ -240,12 +238,26 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
     @Override
     public Loader<Cursor> onCreateLoader(int id, @Nullable Bundle args) {
         CursorLoader loader = null;
-        if (id == LOADER_NOTES)
-            loader = createLoaderNotes();
-        return  loader;
+        if (id == LOADER_NOTES) {
+//            loader = createLoaderNotes();
+            final String[] noteColumns = {
+                    NoteInfoEntry.getQName(NoteInfoEntry._ID),
+                    Notes.COLUMN_NOTE_TITLE,
+                    //i'm using the NoteInfoEntry.getQName just to show that column_course_id appear in both tables we want to join so this must
+                    // be qualified(must explicitly written the the table name before,like NoteInfoEntry.COLUMN_COURSE_ID)
+                    // NoteInfoEntry.getQName(NoteInfoEntry.COLUMN_COURSE_ID),
+                    Notes.COLUMN_COURSE_TITLE
+
+            };
+            final String noteOrderBy = Notes.COLUMN_COURSE_TITLE + "," + Notes.COLUMN_NOTE_TITLE;
+            loader = new CursorLoader(this, Notes.CONTENT_EXPANDED_URI, noteColumns, null, null, noteOrderBy);
+        }
+        return loader;
+
     }
 
     private CursorLoader createLoaderNotes() {
+        //CursorLoader specialized in cursor based loader,Issues database query and return cursor
        return new CursorLoader(this){
            @Override
            public Cursor loadInBackground() {
@@ -273,6 +285,8 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
 
                return db.query(tablesWithJoin, noteColumns, null, null, null, null, noteOrderBy);
            }
+
+
        };
 
     }

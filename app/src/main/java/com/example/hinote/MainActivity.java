@@ -1,10 +1,11 @@
 package com.example.hinote;
 
-import android.app.LoaderManager;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 
@@ -16,17 +17,15 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.loader.content.CursorLoader;
 import androidx.loader.content.Loader;
 
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
 
 import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
-
-import java.util.List;
 
 import static androidx.loader.app.LoaderManager.*;
 
@@ -54,6 +53,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     private int LOADER_COURSES;
     private boolean mCoursesQueryFinished;
     private boolean mNoteQueryFinished;
+    private Uri mNoteUri;
 
 
     @Override
@@ -137,7 +137,8 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 //            displayNote();
             //loadNoteData directly loads data from database,so it have a very potential to interfere with the user interface so it's better to use loaderManager to load our data
 //            loadNoteData();
-            //we pass integer value to identify the loader,the last parameter is reference to class we want to receive the loader call back,we want it to come directly to MainActivity class so we put 'this'(we want the loader manager to 'NOTIFY' the MainActivity class of the loader event)
+            //we pass integer value to identify the loader,the last parameter is reference to class we want to receive the loader call back,
+            // we want it to come directly to MainActivity class so we put 'this'(we want the loader manager to 'NOTIFY' the MainActivity class of the loader event)
 //            getLoaderManager().initLoader(LOADER_NOTES,null,this);
             getInstance(this).initLoader(LOADRE_NOTES,null,this);
         }
@@ -221,19 +222,24 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         }else{
             saveNote();
         }
+
     }
 
     private void deleteNoteFromDatabase() {
         //when ever local variables used in the body of method  marked anonymous class(the ASYNC TASK class) these variables must be marked as final
-        final String selection = NoteInfoEntry._ID + " = ? ";
-        final String[] selectionArgs = {Integer.toString(mNoteId)};
+//        final String selection = NoteInfoEntry._ID + " = ? ";
+//        final String[] selectionArgs = {Integer.toString(mNoteId)};
 
+        //######################################################################################################################################################
+        //------------------------------------DELETING USING CONTENT PROVIDER----------------------------------------------------------------------------------
+        //######################################################################################################################################################
         AsyncTask task = new AsyncTask() {
             @Override
             protected Object doInBackground(Object[] objects) {
 
-                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-                db.delete(NoteInfoEntry.TABLE_NAME,selection,selectionArgs);
+//                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+//                db.delete(NoteInfoEntry.TABLE_NAME,selection,selectionArgs);
+                getContentResolver().delete(mNoteUri,null,null);
                 return null;
             }
         };
@@ -277,10 +283,13 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         return courseId;
     }
 
-    private void saveNoteToDatabase(String courseId,String noteTitle,String noteText){
-        final String selection = NoteInfoEntry._ID + " = ? ";
-        final String[] selectionArgs = {Integer.toString(mNoteId)};
+    private void saveNoteToDatabase(String courseId, String noteTitle, final String noteText){
+//        final String selection = NoteInfoEntry._ID + " = ? ";
+//        final String[] selectionArgs = {Integer.toString(mNoteId)};
 
+        //###############################################################################################################################################
+        //------------------------------UPDATING TABLE USING CONTENT PROVIDER----------------------------------------------------------------------------
+        //###############################################################################################################################################
         final ContentValues values = new ContentValues();
         values.put(NoteInfoEntry.COLUMN_COURSE_ID,courseId);
         values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,noteTitle);
@@ -289,11 +298,15 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         AsyncTask task = new AsyncTask() {
             @Override
             protected Object doInBackground(Object[] objects) {
-                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-                db.update(NoteInfoEntry.TABLE_NAME,values,selection,selectionArgs);
-                return null;
+//                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+//                db.update(NoteInfoEntry.TABLE_NAME,values,selection,selectionArgs);
+//                return null;
+                 getContentResolver().update(mNoteUri,values,null,null);
+                 return null;
+
             }
         };
+        task.execute();
 
 
 
@@ -352,22 +365,47 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 //        mNoteId = dm.createNewNote();
 //        mNote = dm.getNotes().get(mNoteId);
 
+//        final ContentValues values = new ContentValues();
+//        values.put(NoteInfoEntry.COLUMN_COURSE_ID,"");
+//        values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,"");
+//        values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,"");
+
+//        AsyncTask task = new AsyncTask() {
+//            @Override
+//            protected Object doInBackground(Object[] objects) {
+//                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
+//                //we assign it to mNoteId b/c we want to update or remove this null values when the user gets back from this activity
+//                mNoteId = (int) db.insert(NoteInfoEntry.TABLE_NAME,null,values);
+//                return null;
+//            }
+//        };
+//
+//       task.execute();
+
+        //####################################################################################################################################################
+        //USING CONTENT PROVIDER TO CREATE A MEW NOTE
+        //#####################################################################################################################################################
+        //####################################################################################################################################################
+        //---------------------------------------- INSERTING NEW NOTE USING CONTENT PROVIDER -----------------------------------------------------------------
+        //####################################################################################################################################################
+
+        //##########################################################################################################################################################
+        //---------------------------------------------CREATING NEW NOTE USING CONTENT PROVIDER--------------------------------------------------------------------
+        //##########################################################################################################################################################
         final ContentValues values = new ContentValues();
-        values.put(NoteInfoEntry.COLUMN_COURSE_ID,"");
-        values.put(NoteInfoEntry.COLUMN_NOTE_TITLE,"");
-        values.put(NoteInfoEntry.COLUMN_NOTE_TEXT,"");
+        values.put(NoteKeeperProviderContract.Notes.COLUMN_COURSE_ID,"");
+        values.put(NoteKeeperProviderContract.Notes.COLUMN_NOTE_TITLE,"");
+        values.put(NoteKeeperProviderContract.Notes.COLUMN_NOTE_TEXT,"");
 
         AsyncTask task = new AsyncTask() {
             @Override
             protected Object doInBackground(Object[] objects) {
-                SQLiteDatabase db = mDBOpenHelper.getWritableDatabase();
-                //we assign it to mNoteId b/c we want to update or remove this null values when the user gets back from this activity
-                mNoteId = (int) db.insert(NoteInfoEntry.TABLE_NAME,null,values);
-                return null;
+                //this return a URI for our newly created row
+                mNoteUri = getContentResolver().insert(NoteKeeperProviderContract.Notes.CONTENT_URI,values);
+                return mNoteUri;
             }
         };
-
-       task.execute();
+        task.execute();
 
 
     }
@@ -460,22 +498,38 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         return loader;
     }
 
+    //######################################################################################################################################################
+    //HERE WE GET OUR COURSES FROM OUR CONTENT PROVIDER NOT DIRECTLY ---------QUERYING--------- SQLite
+    //######################################################################################################################################################
     private CursorLoader createLoaderCourses() {
         mCoursesQueryFinished = false;
-        return new CursorLoader(this){
-            @Override
-            public Cursor loadInBackground() {
-                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
-                String[] courseColumns = {
-                        CourseInfoEntry.COLUMN_COURSE_TITLE,
-                        CourseInfoEntry.COLUMN_COURSE_ID,
-                        CourseInfoEntry._ID
-                };
-
-                return db.query(CourseInfoEntry.TABLE_NAME,courseColumns,
-                        null,null,null,null,CourseInfoEntry.COLUMN_COURSE_TITLE);
-            }
+        //querying using content provider
+        //Uri uri = Uri.parse("content://com.example.hinote.provider");
+        Uri uri = NoteKeeperProviderContract.Courses.CONTENT_URI;
+        String[] courseColumns = {
+                //anytime we're interacting with the content or cursor return from a content provider we want to make sure
+                //we use constants from the content provider's contract class
+                NoteKeeperProviderContract.Courses.COLUMN_COURSE_TITLE,
+                NoteKeeperProviderContract.Courses.COLUMN_COURSE_ID,
+                NoteKeeperProviderContract.Courses._ID
         };
+        return new CursorLoader(this,uri,courseColumns,null,null, NoteKeeperProviderContract.Courses.COLUMN_COURSE_TITLE);
+
+
+//        return new CursorLoader(this){
+//            @Override
+//            public Cursor loadInBackground() {
+//                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+//                String[] courseColumns = {
+//                        CourseInfoEntry.COLUMN_COURSE_TITLE,
+//                        CourseInfoEntry.COLUMN_COURSE_ID,
+//                        CourseInfoEntry._ID
+//                };
+//
+//                return db.query(CourseInfoEntry.TABLE_NAME,courseColumns,
+//                        null,null,null,null,CourseInfoEntry.COLUMN_COURSE_TITLE);
+//            }
+//        };
     }
 
     //loader in this method is a reference to a loader,a loader we created inside createLoaderNotes,the second parameter is the actual Cursor we have returned
@@ -504,22 +558,35 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 
     private CursorLoader createLoaderNotes() {
         mNoteQueryFinished = false;
-        return new CursorLoader(this){
-            @Override
-            public Cursor loadInBackground() {
+//        return new CursorLoader(this){
+//            @Override
+//            public Cursor loadInBackground() {
+//
+//                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
+//                String selection = NoteInfoEntry._ID + " = ?";
+//                String[] selectionArgs = {Integer.toString(mNoteId)};
+//
+//                String[] noteColumns = {
+//                        NoteInfoEntry.COLUMN_COURSE_ID,
+//                        NoteInfoEntry.COLUMN_NOTE_TITLE,
+//                        NoteInfoEntry.COLUMN_NOTE_TEXT
+//                };
+//                return db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
+//            }
+//        };
 
-                SQLiteDatabase db = mDBOpenHelper.getReadableDatabase();
-                String selection = NoteInfoEntry._ID + " = ?";
-                String[] selectionArgs = {Integer.toString(mNoteId)};
 
-                String[] noteColumns = {
-                        NoteInfoEntry.COLUMN_COURSE_ID,
-                        NoteInfoEntry.COLUMN_NOTE_TITLE,
-                        NoteInfoEntry.COLUMN_NOTE_TEXT
-                };
-                return db.query(NoteInfoEntry.TABLE_NAME,noteColumns,selection,selectionArgs,null,null,null);
-            }
+        //###########################################################################################################################################################
+        //------------------------------------------DISPLAYING SPECIFIC NOTE USING CONTENT PROVIDER-----------------------------------------------------------------
+        //############################################################################################################################################################
+        String[] noteColumns = {
+                NoteKeeperProviderContract.Notes.COLUMN_COURSE_ID,
+                NoteKeeperProviderContract.Notes.COLUMN_NOTE_TITLE,
+                NoteKeeperProviderContract.Notes.COLUMN_NOTE_TEXT
         };
+       mNoteUri =  ContentUris.withAppendedId(NoteKeeperProviderContract.Notes.CONTENT_URI,mNoteId);
+       return new CursorLoader(this,mNoteUri,noteColumns,null,null,null);
+
     }
 
 
@@ -529,7 +596,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         mCourseIdPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_COURSE_ID);
         mNoteTitlePos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TITLE);
         mNoteTextPos = mNoteCursor.getColumnIndex(NoteInfoEntry.COLUMN_NOTE_TEXT);
-        mNoteCursor.moveToNext();
+        mNoteCursor.moveToFirst();
         mNoteQueryFinished = true;
         displayNoteWhenQueryFinished();
 
