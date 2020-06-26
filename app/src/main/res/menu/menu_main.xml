@@ -8,6 +8,11 @@
         android:title="Send as Email"
         app:showAsAction="never" />
     <item
+        android:id="@+id/action_set_reminder"
+        android:orderInCategory="100"
+        android:title="Set remainder"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_cancel"
         android:icon="@android:drawable/ic_menu_revert"
         android:title="Cancel"

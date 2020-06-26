@@ -59,5 +59,7 @@
     </string-array>
 
     <string name="pref_default_favorite_social">http://plus.google.com</string>
+    <string name="backup">Backup notes</string>
+    <string name="upload_notes">Upload notes</string>
 
 </resources>

@@ -1,9 +1,17 @@
 package com.example.hinote;
 
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PersistableBundle;
+import android.os.StrictMode;
+import android.view.Gravity;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.Menu;
@@ -31,6 +39,7 @@ import java.util.List;
 
 import static androidx.loader.app.LoaderManager.getInstance;
 
+
 public class NoteActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener,androidx.loader.app.LoaderManager.LoaderCallbacks<Cursor>{
 
     private static final int LOADER_NOTES = 0;
@@ -42,6 +51,8 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
     private GridLayoutManager mCourseLayoutManager;
     //we assign open helper  reference as a member field to make the live around  for teh life of the activity.
     private NoteKeeperOpenHelper mDBOpenHelper;
+    public static final int NOTE_UPLOADER_JOB_ID = 1;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +60,9 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         setContentView(R.layout.activity_note);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+
+        enableStrictMode();
 
         //instance of our NoteKeeperOpenHelper and assigning it to our member field
         mDBOpenHelper = new NoteKeeperOpenHelper(this);
@@ -81,6 +95,17 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         initializeDisplayContent();
     }
 
+    private void enableStrictMode() {
+        //this can detect undesirable operations that are running on the main thread
+        if (BuildConfig.DEBUG){
+            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder()
+                    .detectAll()
+                    .penaltyLog()
+                    .build();
+            StrictMode.setThreadPolicy(policy);
+        }
+    }
+
     //whenever we get back to the NoteListActivity we need to notify the ArrayAdapter that if any data is changed
     @Override
     protected void onResume() {
@@ -91,6 +116,24 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         //mNoteRecyclerAdapter.notifyDataSetChanged();
         getInstance(this).restartLoader(LOADER_NOTES,null,this);
         //updateNavHeader()  -- not worked,it is related to navigation View
+        openDrawer();
+    }
+
+    private void openDrawer() {
+        //here we r explicitly associate the handler with the  Main thread's Looper no matter which thread the Handler instance was created on
+        Handler handler = new Handler(Looper.getMainLooper());
+        //putting some work in to the massage queue of LooperThread(main Thread)
+        //provide implementation of runnable that will be run on the Handler by passing that work into the message queue and dispatching it out to our Handler
+        //postDelayed allows us to do is pass in a time frame for how long we want the delay to be before the code is run and we pass that in milliseconds.
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                DrawerLayout drawer =  findViewById(R.id.drawer_layout);
+                drawer.openDrawer(GravityCompat.START);
+            }
+        },1000);
+
+
     }
 
     //not used b/c of the use of Data Loading with Loaders
@@ -223,10 +266,47 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
         if (id == R.id.action_settings){
             startActivity(new Intent(this,SettingsActivity.class));
             return true;
+        }else if (id == R.id.action_backup){
+            backupNotes();
+        }else if (id == R.id.action_upload_notes){
+            scheduleNoteUpload();
+
         }
 
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void backupNotes() {
+        //NoteBackup.doBackup(this,NoteBackup.ALL_COURSES);
+        Intent intent = new Intent(this,NoteBackupService.class);
+        intent.putExtra(NoteBackupService.EXTRA_COURSE_ID,NoteBackup.ALL_COURSES);
+        startService(intent);
+    }
+
+    private void scheduleNoteUpload() {
+        //to associate the extras with our job information we're going to use a PersistableBundle class
+        PersistableBundle extras = new PersistableBundle();
+        //persistableBundle class doesn't have a put method that accepts a URI value directly. so instead we'll pass the URI as a string.
+        extras.putString(NoteUploaderJobService.EXTRA_DATA_URI, NoteKeeperProviderContract.Notes.CONTENT_URI.toString());
+
+
+
+        //to schedule our job we first need to build the information about the job and one of the most important pieces of information
+        //we need to provide is the description of the component that will handle the job. to provide the description we'll use a class called ComponentName
+        //our componentName variable contains a description of the class that will serve as our jobService component
+        ComponentName componentName = new ComponentName(this,NoteUploaderJobService.class);
+
+        //JobInfo.Builder(app-defined job id that identifies the job,description of our JobService component)
+        JobInfo jobInfo = new JobInfo.Builder(NOTE_UPLOADER_JOB_ID,componentName)
+                //indicates our job can use any available network
+                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                .setExtras(extras)
+                //create our JobInfo instance
+                .build();
+        //we schedule the job,the job scheduler will handle running of our job once all the criteria has been met
+        JobScheduler jobScheduler =(JobScheduler) getSystemService(JOB_SCHEDULER_SERVICE);
+        jobScheduler.schedule(jobInfo);
     }
 
     private void handleSelection(int message_id) {
@@ -247,7 +327,6 @@ public class NoteActivity extends AppCompatActivity implements NavigationView.On
                     // be qualified(must explicitly written the the table name before,like NoteInfoEntry.COLUMN_COURSE_ID)
                     // NoteInfoEntry.getQName(NoteInfoEntry.COLUMN_COURSE_ID),
                     Notes.COLUMN_COURSE_TITLE
-
             };
             final String noteOrderBy = Notes.COLUMN_COURSE_TITLE + "," + Notes.COLUMN_NOTE_TITLE;
             loader = new CursorLoader(this, Notes.CONTENT_EXPANDED_URI, noteColumns, null, null, noteOrderBy);

@@ -11,7 +11,7 @@
         android:theme="@style/AppTheme">
         <activity
             android:name=".SettingsActivity"
-            android:label="@string/title_activity_settings"></activity>
+            android:label="@string/title_activity_settings" />
 
         <activity
             android:name=".NoteActivity"
@@ -26,12 +26,22 @@
         <activity
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
-            android:theme="@style/AppTheme.NoActionBar"></activity>
+            android:theme="@style/AppTheme.NoActionBar" />
         <provider
             android:name=".NoteKeeperProvider"
             android:authorities="com.example.hinote.provider"
             android:enabled="true"
-            android:exported="true"></provider>
+            android:exported="true" />
+
+        <service
+            android:name=".NoteUploaderJobService"
+            android:enabled="true"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"></service>
+
+        <service
+            android:name=".NoteBackupService"
+            android:exported="false" />
     </application>
 
 </manifest>

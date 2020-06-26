@@ -1,7 +1,10 @@
 package com.example.hinote;
 
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
+import android.os.AsyncTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +30,9 @@ public class DataManager {
     public static void loadFromDatabase(NoteKeeperOpenHelper dbHelper){
         //getReadableDatabase to read data from our database
         //the type of "db" is SQLite database that allow us to interact with the database
+
+
+
         SQLiteDatabase db = dbHelper.getReadableDatabase();
 
         String[] courseColumns = {CourseInfoEntry.COLUMN_COURSE_ID,
@@ -45,6 +51,7 @@ public class DataManager {
 
         //we want the notes sorted by the course that they apply to,then within each course we want to sort the titles
         String noteOrderBy = NoteInfoEntry.COLUMN_COURSE_ID + "," + NoteInfoEntry.COLUMN_NOTE_TITLE;
+
 
         Cursor noteCursor = db.query(NoteInfoEntry.TABLE_NAME, noteColumns, null, null, null, null, noteOrderBy);
 

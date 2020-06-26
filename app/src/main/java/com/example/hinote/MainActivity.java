@@ -1,31 +1,48 @@
 package com.example.hinote;
 
+import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.job.JobInfo;
+import android.app.job.JobScheduler;
+import android.content.ComponentName;
 import android.content.ContentUris;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.NotificationCompat;
+import androidx.fragment.app.FragmentActivity;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.loader.content.CursorLoader;
 import androidx.loader.content.Loader;
 
+import android.os.PersistableBundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
 
 import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
+import com.google.android.material.snackbar.Snackbar;
 
 import static androidx.loader.app.LoaderManager.*;
 
@@ -36,6 +53,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     public static final String NOTE_ID = "com.example.hinote.NOTE_POSITION";
     public static final int ID_NOT_SET = -1;
     public static final int LOADRE_NOTES = 0;
+    public static final String TAG = "MainActivity";
     private NoteInfo mNote;
     private boolean mIsNewNote;
     private Spinner mSpinnerCourses;
@@ -185,6 +203,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 //
 //    }
 
+
     //hear all the original note values are stored so we can use them later if the user cancels
 
     private void saveOriginalNoteValues() {
@@ -246,6 +265,7 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 
         //the async task class will tack care of the details of running the code in doInBackground method on a non-UI thread.
         task.execute();
+
 
 
 
@@ -397,17 +417,67 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         values.put(NoteKeeperProviderContract.Notes.COLUMN_NOTE_TITLE,"");
         values.put(NoteKeeperProviderContract.Notes.COLUMN_NOTE_TEXT,"");
 
-        AsyncTask task = new AsyncTask() {
+        //AsyncTask accepts three type  parameters TYPE1 = BELOW is ContentValues => is the type we want to pass to doInBackground method TYPE3 BELOW is Uri => is the type that's
+        //returned from doInBackground method and is the one we pass to onPostExecute method to use it in the main thread
+        //TYPE2 BELOW is Integer => is used to pass progress information from doInBackground or other thread to main Thread
+        AsyncTask<ContentValues,Integer,Uri> task = new AsyncTask<ContentValues, Integer, Uri>() {
+            private ProgressBar mProgressBar;
+
+            //runs before doInBackground method
             @Override
-            protected Object doInBackground(Object[] objects) {
-                //this return a URI for our newly created row
-                mNoteUri = getContentResolver().insert(NoteKeeperProviderContract.Notes.CONTENT_URI,values);
-                return mNoteUri;
+            protected void onPreExecute() {
+                mProgressBar = findViewById(R.id.progress_Bar);
+                mProgressBar.setVisibility(View.VISIBLE);
+                mProgressBar.setProgress(1);
+            }
+
+            @Override
+            protected Uri doInBackground(ContentValues... contentValues) {
+                Log.d(TAG, "doInBackground: thread:" + Thread.currentThread().getId());
+               ContentValues insertValues = contentValues[0];
+               Uri rowUri = getContentResolver().insert(NoteKeeperProviderContract.Notes.CONTENT_URI,insertValues);
+               simulateLongRunningWork();
+               //the values we pass to publishProgress are passed in to onProgressUpdate()
+               publishProgress(2);
+               simulateLongRunningWork();
+               publishProgress(3);
+
+               return rowUri;
+            }
+            //we call this method and pass values to it with  publishProgress(--)
+            //runs on the mainThread
+            @Override
+            protected void onProgressUpdate(Integer... values) {
+                int progressValue = values[0];
+                mProgressBar.setProgress(progressValue);
+            }
+
+            //onPostExecute provides the result of doInBackground
+            @Override
+            protected void onPostExecute(Uri uri) {
+                Log.d(TAG, "onPostExecute: thread:" + Thread.currentThread().getId());
+                mNoteUri = uri;
+                displaySnackbar(mNoteUri.toString());
+                mProgressBar.setVisibility(View.GONE);
+
             }
         };
-        task.execute();
+        Log.d(TAG, "call to execute:" + Thread.currentThread().getId());
+        task.execute(values);
 
 
+
+    }
+
+    private void displaySnackbar(String message) {
+        View view = findViewById(R.id.spinner_courses);
+        Snackbar.make(view, message, Snackbar.LENGTH_LONG).show();
+    }
+
+    private void simulateLongRunningWork() {
+        try {
+            Thread.sleep(2000);
+        } catch(Exception ex) {}
     }
 
     @Override
@@ -435,8 +505,48 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         }else if (id == R.id.action_next){
             moveNext();
         }
+        else if (id == R.id.action_set_reminder){
+            showRemainderNotification();
+        }
+
 
         return super.onOptionsItemSelected(item);
+    }
+
+
+    private void showRemainderNotification() {
+        String noteTitle = mTextNoteTitle.getText().toString();
+        String noteText = mTextNoteText.getText().toString();
+        int noteId = (int)ContentUris.parseId(mNoteUri);
+//        NoteReminderNotification.notify(this,noteTitle,noteText,noteId);
+
+        notificationDialog();
+    }
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    public void notificationDialog() {
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        String NOTIFICATION_CHANNEL_ID = "tutorialspoint_01";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            @SuppressLint("WrongConstant") NotificationChannel notificationChannel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, "My Notifications", NotificationManager.IMPORTANCE_MAX);
+            // Configure the notification channel.
+            notificationChannel.setDescription("Sample Channel description");
+            notificationChannel.enableLights(true);
+            notificationChannel.setLightColor(Color.RED);
+            notificationChannel.setVibrationPattern(new long[]{0, 1000, 500, 1000});
+            notificationChannel.enableVibration(true);
+            notificationManager.createNotificationChannel(notificationChannel);
+        }
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
+        notificationBuilder.setAutoCancel(true)
+                .setDefaults(Notification.DEFAULT_ALL)
+                .setWhen(System.currentTimeMillis())
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setTicker("Tutorialspoint")
+                //.setPriority(Notification.PRIORITY_MAX)
+                .setContentTitle("sample notification")
+                .setContentText("This is sample notification")
+                .setContentInfo("Information");
+        notificationManager.notify(1, notificationBuilder.build());
     }
 
     //called before the menu is initially displayed
