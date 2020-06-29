@@ -1,36 +1,21 @@
 package com.example.hinote;
 
-import android.annotation.SuppressLint;
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.job.JobInfo;
-import android.app.job.JobScheduler;
-import android.content.ComponentName;
+import android.app.PendingIntent;
 import android.content.ContentUris;
 import android.content.ContentValues;
-import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.NotificationCompat;
-import androidx.fragment.app.FragmentActivity;
-import androidx.lifecycle.ViewModelProvider;
-import androidx.loader.content.CursorLoader;
-import androidx.loader.content.Loader;
-
-import android.os.PersistableBundle;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -40,11 +25,20 @@ import android.widget.ProgressBar;
 import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.NotificationCompat;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.loader.content.CursorLoader;
+import androidx.loader.content.Loader;
+
 import com.example.hinote.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.hinote.NoteKeeperDatabaseContract.NoteInfoEntry;
 import com.google.android.material.snackbar.Snackbar;
 
-import static androidx.loader.app.LoaderManager.*;
+import static androidx.loader.app.LoaderManager.getInstance;
 
 //it's because our MainActivity extends the AppCompatActivity we have the advantage of restoring(only for editable widgets) through our bundle passed on the onCreate Method
 //we put type cursor in LoaderManager.LoaderCallbacks<Cursor> b/c the loader manager loads data in to Cursor
@@ -54,6 +48,8 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     public static final int ID_NOT_SET = -1;
     public static final int LOADRE_NOTES = 0;
     public static final String TAG = "MainActivity";
+    public static final int NOTIFICATION_UNIQUE_ID = 1;
+    public static final int DISPLAY_ALL_NOTES = -5;
     private NoteInfo mNote;
     private boolean mIsNewNote;
     private Spinner mSpinnerCourses;
@@ -72,6 +68,8 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
     private boolean mCoursesQueryFinished;
     private boolean mNoteQueryFinished;
     private Uri mNoteUri;
+    public static NotificationManager mNotificationManager;
+    public static  String mNOTIFICATION_channel_id;
 
 
     @Override
@@ -147,6 +145,15 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
 
         readDisplayStateValues();
 //      saveOriginalNoteValues();
+
+
+
+        //Because you must create the notificationHelper channel before posting any notifications on Android 8.0 and higher,
+        //you should execute this code as soon as your app starts. It's safe to call this repeatedly because creating an existing notificationHelper channel performs no operation.
+
+//        NotificationHelper notificationHelper = new NotificationHelper();
+//        notificationHelper.createNotificationChannel(this);
+        createNotificationChannel();
 
         mTextNoteTitle = findViewById(R.id.text_note_title);
         mTextNoteText = findViewById(R.id.text_note_text);
@@ -328,8 +335,6 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         };
         task.execute();
 
-
-
     }
 
     private void displayNote() {
@@ -345,6 +350,8 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         mSpinnerCourses.setSelection(courseIndex);
         mTextNoteTitle.setText(noteTitle);
         mTextNoteText.setText(noteText);
+        //we send broadcast when our app display note
+        CourseEventBroadcastHelper.sendEventBroadcast(this,courseId,"Editing Note");
     }
 
     private int getIndexOfCourseId(String courseId) {
@@ -374,8 +381,8 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         mIsNewNote = mNoteId == ID_NOT_SET;
         if (mIsNewNote){
             createNewNote();
-        }else {
-//            mNote = DataManager.getInstance().getNotes().get(mNoteId);
+        }else{
+            //
         }
     }
     //to create a brand new note
@@ -518,35 +525,103 @@ public class MainActivity extends AppCompatActivity implements androidx.loader.a
         String noteTitle = mTextNoteTitle.getText().toString();
         String noteText = mTextNoteText.getText().toString();
         int noteId = (int)ContentUris.parseId(mNoteUri);
-//        NoteReminderNotification.notify(this,noteTitle,noteText,noteId);
+//        NotificationDialog(noteTitle,noteText,noteId);
 
-        notificationDialog();
+        //using alarm manager to schedule a call to our broadcast receiver,
+        //the alarm manager uses a pending intent to run the desired work,and in this case it's our broadcast receiver
+        //this is a scenario where we used explicit intent to allow the system to start a manifest-declared receiver
+        Intent intent = new Intent(this, NoteReminderReceiver.class);
+        intent.putExtra(NoteReminderReceiver.EXTRA_NOTE_TITLE,noteTitle);
+        intent.putExtra(NoteReminderReceiver.EXTRA_NOTE_TEXT,noteText);
+        intent.putExtra(NoteReminderReceiver.EXTRA_NOTE_ID,noteId);
+
+        //we're creating a pending intent for our broadcast receiver
+        //PendingIntent.FLAG_UPDATE_CURRENT -> by using this flag we're telling android to replace any previously created pending intents for that receiver with the one we just created
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this,0,intent,PendingIntent.FLAG_UPDATE_CURRENT);
+
+
+        AlarmManager alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
+        //ElapsedRealtime gives us the number of milliseconds that have passed since the device was last rebooted
+        //for the purposes of setting a relative time,we can treat the value returned back from elapsed real time as if it's our current time expressed in millisecond
+       long currentTimeInMilliseconds =  SystemClock.elapsedRealtime();
+       //""" 1hr = 60 minute * 1 min = 60 second * 1sec = 1000millisecond,""" there are 1000 milliseconds in a second
+        long ONE_HOUR = 60*60*1000;
+        long TEN_SECONDS = 10*1000;
+        long alarmTime = currentTimeInMilliseconds + TEN_SECONDS;
+
+        //our alarm manager executes our broadcast receiver one Hour after the user selects the setReminder menu option
+        alarmManager.set(AlarmManager.ELAPSED_REALTIME,alarmTime,pendingIntent);
+
     }
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    public void notificationDialog() {
-        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        String NOTIFICATION_CHANNEL_ID = "tutorialspoint_01";
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            @SuppressLint("WrongConstant") NotificationChannel notificationChannel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, "My Notifications", NotificationManager.IMPORTANCE_MAX);
-            // Configure the notification channel.
-            notificationChannel.setDescription("Sample Channel description");
-            notificationChannel.enableLights(true);
-            notificationChannel.setLightColor(Color.RED);
-            notificationChannel.setVibrationPattern(new long[]{0, 1000, 500, 1000});
-            notificationChannel.enableVibration(true);
-            notificationManager.createNotificationChannel(notificationChannel);
-        }
-        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
+    public void NotificationDialog(String noteTitle, String noteText, int noteId) {
+        // This image is used as the notification's large icon (thumbnail).
+        final Bitmap picture = BitmapFactory.decodeResource(getResources(), R.drawable.logo);
+
+        Intent noteActivityIntent = new Intent(this, MainActivity.class);
+        noteActivityIntent.putExtra(MainActivity.NOTE_ID, noteId);
+        //The setFlags() method helps preserve the user's expected navigation experience after they open your app via the notification.
+        noteActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+
+        //Normal intents are used to launch other activities internally or externally and for that, we always need to add certain permissions in manifest.
+        //Now we are trying to do opposite(pending intent) i.e. launch the activity in our application from other application,
+        //PendingIntent.getActivity is an a Pending intent that launches an activity
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, noteActivityIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        //→ requestCode — an integer which is assigned to the pending intent we are working with to refer to it when we want to delete it
+        Intent backupServiceIntent = new Intent(this, NoteBackupService.class);
+        backupServiceIntent.putExtra(NoteBackupService.EXTRA_COURSE_ID, NoteBackup.ALL_COURSES);
+
+        //PendingIntent.getService is an a Pending intent that launches a Service
+        PendingIntent backUpPendingIntent = PendingIntent.getService(this,0,backupServiceIntent,PendingIntent.FLAG_UPDATE_CURRENT);
+
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, mNOTIFICATION_channel_id);
         notificationBuilder.setAutoCancel(true)
                 .setDefaults(Notification.DEFAULT_ALL)
                 .setWhen(System.currentTimeMillis())
-                .setSmallIcon(R.mipmap.ic_launcher)
-                .setTicker("Tutorialspoint")
-                //.setPriority(Notification.PRIORITY_MAX)
-                .setContentTitle("sample notification")
-                .setContentText("This is sample notification")
-                .setContentInfo("Information");
-        notificationManager.notify(1, notificationBuilder.build());
+                .setSmallIcon(R.drawable.ic_event_note_black_24dp)
+                .setLargeIcon(picture)
+                .setContentTitle("Review note")
+                .setContentText(noteText)
+                // Set ticker text (preview) information for this notification.
+                .setTicker("Review note")
+                // Automatically dismiss the notification when it is touched.
+                .setAutoCancel(true)
+                // Set the intent that will fire when the user taps the notification
+                .setContentIntent(pendingIntent)
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText(noteText)
+                        .setBigContentTitle(noteTitle)
+                        .setSummaryText("Review note"))
+                .setContentInfo("Information")
+
+                .addAction(
+                        0,
+                        "View all notes",
+                        PendingIntent.getActivity(
+                                this,
+                                0,
+                                new Intent(this, NoteActivity.class),
+                                PendingIntent.FLAG_UPDATE_CURRENT))
+
+                .addAction(
+                        0,
+                        "Backup notes",
+                       backUpPendingIntent);
+
+        mNotificationManager.notify(NOTIFICATION_UNIQUE_ID, notificationBuilder.build());
+    }
+
+    private void createNotificationChannel() {
+        mNOTIFICATION_channel_id = "HI-NOTE";
+        CharSequence name = getString(R.string.channel_name);
+        String description = getString(R.string.channel_description);
+        int importance = NotificationManager.IMPORTANCE_DEFAULT;
+        NotificationChannel channel = new NotificationChannel(mNOTIFICATION_channel_id, name, importance);
+        channel.setDescription(description);
+        // Register the channel with the system; you can't change the importance
+        // or other notification behaviors after this
+        mNotificationManager = getSystemService(NotificationManager.class);
+        mNotificationManager.createNotificationChannel(channel);
     }
 
     //called before the menu is initially displayed

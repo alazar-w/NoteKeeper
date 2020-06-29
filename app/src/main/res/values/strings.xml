@@ -61,5 +61,7 @@
     <string name="pref_default_favorite_social">http://plus.google.com</string>
     <string name="backup">Backup notes</string>
     <string name="upload_notes">Upload notes</string>
+    <string name="channel_name">CHANEL_1</string>
+    <string name="channel_description">THIS IS CHANNEL DISCRIPTION</string>
 
 </resources>
